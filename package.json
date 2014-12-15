@@ -16,6 +16,7 @@
         "mongodb":"*",
         "monk": "*",
         "multer": "~0.1.6",
-        "request": "*"
+        "request": "*",
+        "lwip": "*"
     }
 }

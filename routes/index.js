@@ -4,6 +4,8 @@ var mongo = require('mongodb');
 var monk = require('monk');
 var db = monk('localhost:27017/HX');
 var request = require('request');
+var lwip = require("lwip");
+var path = require("path");
 
 /* GET home page. */
 router.get('/', function(req, res) {
@@ -175,7 +177,7 @@ router.post('/getMyMeetList', function(req, res) {
                 res.json({status:"Err", msg:err});
             }
             else{
-                console.log(result);
+                //console.log(result);
                 res.json({status: "OK", list: result});
             }
         }
@@ -383,7 +385,7 @@ router.post('/replyMeet', function(req, res) {
                                                     cid: result.cid,
                                                     title: 'Hello H5 ',
                                                     content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                                                    payload: '"type":"match", "meetId":"'+ meetId + '"'
+                                                    payload: '"type":"matchTarget", "meetId":"'+ meetId + '"'
                                                 }
                                                 },
                                                 function (error, response, body) {
@@ -418,7 +420,7 @@ router.post('/replyMeet', function(req, res) {
                                                     cid: result.cid,
                                                     title: 'Hello H5 ',
                                                     content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                                                    payload: '"type":"match", "meetId":"'+ meetId + '"'
+                                                    payload: '"type":"matchCreater", "meetId":"'+ meetId + '"'
                                                 }
                                                 },
                                                 function (error, response, body) {
@@ -565,7 +567,17 @@ router.post('/updateInfo', function(req, res) {
 router.post('/uploadSpecialPic', function(req, res) {
     if (req.body.client == "pp")
     {
-        res.json({status: "OK", item: req.files.specialPic.name});
+        var fileName = req.files.specialPic.name;
+        var fileNameBase = path.basename(fileName, path.extname(fileName));
+        lwip.open('./public/images/'+fileName, function(err, image){
+            image.batch().resize(80, 80).writeFile('./public/images/' + fileNameBase + "_m.jpg", function(err){
+            });
+        });
+        lwip.open('./public/images/'+fileName, function(err, image){
+            image.batch().resize(40, 40).writeFile('./public/images/' + fileNameBase + "_s.jpg", function(err){
+            });
+        });
+        res.json({status: "OK", item: fileName});
     }
     else
     {
