@@ -1,0 +1,46 @@
+<html>
+<meta charset="utf-8">
+<form method="post" enctype="application/x-www-form-urlencoded" action="http://localhost:3000/uploadSpecialPic">
+    <input type="text" name="username">
+    <input type="password" name="password">
+    <input type="file" name="thumbnail">
+    <input type="submit">
+</form>
+<form action="http://localhost:3000/tt" method="POST" onsubmit="return checkSubmit();">
+    <input type="hidden" name="pushtype" value="tran">
+    <input type="hidden" name="version" value="0.13.0"><input type="hidden" name="appid" value="HBuilder">    <table>
+    <tbody>
+    <tr>
+        <td style="min-width:80px;">终端标识：</td>
+        <!-- readonly="readonly" placeholder="推送通知目标标识" -->
+        <td>
+            <input id="cid" name="cid" type="text" placeholder="推送通知目标标识" readonly="readonly" value="1d511858b3bfac8e35a500dc3a59c6f9">
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2"><hr></td>
+    </tr>
+    <tr>
+        <td style="min-width:80px;">标题：</td>
+        <td><input id="title" name="title" type="text" placeholder="推送通知的标题" value="Hello H5 "></td>
+    </tr>
+    <tr>
+        <td>内容：</td>
+        <td><textarea id="content" name="content" rows="3" placeholder="推送通知的内容">带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！</textarea></td>
+    </tr>
+    <tr>
+        <td colspan="2"><hr></td>
+    </tr>
+    <tr>
+        <td>负载数据：</td>
+        <td><textarea id="payload" name="payload" rows="3" placeholder="推送通知的负载数据，可使用JSON字符串">{title:"Hello H5  Test",content:"test content",payload:{id:"1234567890"}}</textarea></td>
+    </tr>
+    <tr>
+        <td colspan="2" style="text-align:center;">
+            <input type="submit" value="发送推送通知">
+        </td>
+    </tr>
+    </tbody>
+</table>
+</form>
+</html>
