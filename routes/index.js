@@ -229,7 +229,7 @@ router.post('/createMeet', function(req, res) {
                 res.json({status:"Err", msg:err});
             }
             else{
-                if (req.body.target)
+                if (req.body.target && req.body.target != "fake")
                 {
                     //通知被选择方
                     //get cid
@@ -577,6 +577,10 @@ router.post('/uploadSpecialPic', function(req, res) {
             image.batch().resize(40, 40).writeFile('./public/images/' + fileNameBase + "_s.jpg", function(err){
             });
         });
+        lwip.open('./public/images/'+fileName, function(err, image){
+            image.batch().scale(0.25).resize(200, 200).writeFile('./public/images/' + fileNameBase + "_l.jpg", function(err){
+            });
+        });
         res.json({status: "OK", item: fileName});
     }
     else
@@ -612,8 +616,32 @@ router.post('/searchTargetPic', function(req, res) {
                 res.json({status:"Err", msg:err});
             }
             else{
-                console.log(result);
-                res.json({status: "OK", item: result});
+                //console.log(result);
+                //随机图片
+                var needRanNum = 4 - result.length;
+                if (needRanNum > 0)
+                {
+                    //已有图片
+                    var existPics = result.map(function(info) {
+                        return info.fineName;
+                    });
+
+                    db.get('info').find( { fileName: { $exists: true, $nin: existPics, $ne: "" } }, {limit: 4}, function(err, result2){
+                        if (err){
+                            res.json({status:"Err", msg:err});
+                        }else{
+                            var fakeResult = result2.map(function(info){
+                                return {userName: "fake", fileName: info.fileName};
+                            });
+                            res.json({status: "OK", item: result.concat(fakeResult)});
+                        }
+                    });
+                }
+                else{
+                    res.json({status: "OK", item: result});
+                }
+
+
             }
         }
     )
@@ -635,6 +663,117 @@ router.get('/tt', function(req, res) {
         function (error, response, body) {
             if (!error && response.statusCode == 200) {
                 console.log(body)
+            }
+        }
+    );
+});
+
+router.post('/getChatList', function(req, res) {
+    db.get('chat').find(
+        {
+            meetId: req.body.meetId
+        },
+        {
+            sort: {_id: -1}
+        },
+        function(err, result)
+        {
+            if (err){
+                console.log(err);
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                console.log(result);
+                res.json({status: "OK", list: result});
+            }
+        }
+    );
+});
+
+router.post('/chat', function(req, res) {
+    var meetId = req.body.meetId;
+    var content = req.body.content;
+    var from = req.body.userName;
+    var to = "";
+
+    console.log(meetId + "," + content + ',' + from);
+    db.get('meet').findOne(
+        {
+            _id: meetId
+        },
+        function(err, result){
+            if (err){
+                console.log(err);
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                var creater = result.creater;
+                var target = result.target;
+
+                if (from == creater)
+                {
+                    to = target;
+                }
+                else
+                {
+                    to = creater;
+                }
+                db.get('chat').insert(
+                    {
+                        meetId: meetId,
+                        from: from,
+                        to: to,
+                        content: content
+                    },
+                    function(err, result){
+                        if (err){
+                            res.json({status:"Err", msg:err});
+                        }
+                        else
+                        {
+                            db.get('info').findOne(
+                                {
+                                    userName: to
+                                },
+                                function(err, result)
+                                {
+                                    if (err)
+                                    {
+                                        res.json({status:"Err", msg:err});
+                                    }
+                                    else
+                                    {
+                                        var cid = result.cid;
+                                        request.post(
+                                            'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
+                                            { form:
+                                            { pushtype: 'tran',
+                                                version: '0.13.0',
+                                                appid: 'HBuilder',
+                                                cid: cid,
+                                                title: 'Hello H5 ',
+                                                content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
+                                                payload: '"type":"chat", "content":"'+ content + '", "meetId":"'+ meetId + '"'
+                                            }
+                                            },
+                                            function (error, response, body) {
+                                                if (!error && response.statusCode == 200) {
+                                                    //res.json({status: "OK", item: null});
+                                                }
+                                                else
+                                                {
+                                                    //res.json({status:"Err", msg:err});
+                                                }
+                                            }
+
+                                        );
+                                    }
+                                }
+                            );
+                            res.json({status: "OK", item: result});
+                        }
+                    }
+                );
             }
         }
     );
