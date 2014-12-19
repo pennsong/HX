@@ -623,7 +623,7 @@ router.post('/searchTargetPic', function(req, res) {
                 {
                     //已有图片
                     var existPics = result.map(function(info) {
-                        return info.fineName;
+                        return info.fileName;
                     });
 
                     db.get('info').find( { fileName: { $exists: true, $nin: existPics, $ne: "" } }, {limit: 4}, function(err, result2){
