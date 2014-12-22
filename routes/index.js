@@ -248,6 +248,7 @@ router.post('/createMeet', function(req, res) {
                         location: { lng: req.body.lng, lat: req.body.lat},
                         target: req.body.target,
                         status: req.body.status,
+                        uid: req.body.uid,
                         targetSex: req.body.targetSex,
                         targetClothesColor: req.body.targetClothesColor,
                         targetClothesStyle: req.body.targetClothesStyle,
@@ -722,6 +723,30 @@ router.post('/searchTargetPic', function(req, res){
             }
         ],
         finalCallback
+    );
+});
+
+router.post('/checkLocUid', function(req, res){
+    db.get('meet').findOne(
+        {
+            _id: req.body.meetId
+        },
+        function(err, result)
+        {
+            if (err){
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                if (result.uid == req.body.uid)
+                {
+                    res.json({status: "OK", match: "YES"});
+                }
+                else
+                {
+                    res.json({status: "OK", match: "NO"});
+                }
+            }
+        }
     );
 });
 
