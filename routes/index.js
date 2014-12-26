@@ -227,7 +227,7 @@ router.post('/getSuccessList', function(req, res) {
 
 });
 
-router.post('/createMeet', function(req, res) {
+function createMeet(req, res){
     var meetId = null;
     var createdMeet = null;
 
@@ -277,6 +277,7 @@ router.post('/createMeet', function(req, res) {
                 }
             },
             function(result, next){
+                console.log(result.cid);
                 request.post(
                     'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
                     {
@@ -300,6 +301,10 @@ router.post('/createMeet', function(req, res) {
         ],
         finalCallback
     );
+}
+
+router.post('/createMeet', function(req, res) {
+    createMeet(req, res);
 });
 
 router.post('/updateMeet', function(req, res) {
@@ -392,7 +397,8 @@ router.post('/replyMeet', function(req, res) {
                 );
             },
             function(result, next){
-                if (result.creater == req.body.userName)
+                //匹配成功
+                if (result.creater == req.body.target)
                 {
                     db.get('meet').findAndModify(
                         {_id: req.body.meetId}, // query
@@ -401,6 +407,7 @@ router.post('/replyMeet', function(req, res) {
                         next
                     );
                 }
+                //没有匹配
                 else
                 {
                     finalCallback(null, null);
@@ -441,24 +448,23 @@ router.post('/replyMeet', function(req, res) {
                         userName: matchedMeet.creater
                     },
                     next
-//                    function(err, result)
-//                    {
-//                        next(null, result);
-//                    }
+
                 );
             },
             function(result, next){
                 request.post(
                     'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
-                    { form:
-                    { pushtype: 'tran',
-                        version: '0.13.0',
-                        appid: 'HBuilder',
-                        cid: result.cid,
-                        title: 'Hello H5 ',
-                        content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                        payload: '"type":"matchCreater", "meetId":"'+ meetId + '"'
-                    }
+                    {
+                        form:
+                        {
+                            pushtype: 'tran',
+                            version: '0.13.0',
+                            appid: 'HBuilder',
+                            cid: result.cid,
+                            title: 'Hello H5 ',
+                            content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
+                            payload: '"type":"matchCreater", "meetId":"'+ meetId + '"'
+                        }
                     },
                     function(err, res, body)
                     {
