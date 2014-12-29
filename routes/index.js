@@ -771,7 +771,7 @@ router.post('/getChatList', function(req, res) {
                 res.json({status:"Err", msg:err});
             }
             else{
-                console.log(result);
+                //console.log(result);
                 res.json({status: "OK", list: result});
             }
         }

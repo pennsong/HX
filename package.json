@@ -17,6 +17,7 @@
         "monk": "*",
         "multer": "~0.1.6",
         "request": "*",
-        "lwip": "*"
+        "lwip": "*",
+        "socket.io": "*"
     }
 }
