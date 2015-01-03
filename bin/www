@@ -17,42 +17,59 @@ var users={};
 io.sockets.on('connection', function (socket) {
     socket.on('joinChat', function (name, fn) {
         //console.log(name);
-        users[name] = socket.id;
+        users[name] = socket;
         console.log(users);
         fn(socket.id);
     });
-    //console.log(socket.handshake.query);
     console.log("new connect:" + socket.id);
-    //console.log(io.sockets.adapter.rooms);
-    socket.on('clientMessage', function(content) {
-        socket.emit('serverMessage', '我: ' + content);
-//
-//        var broadcast = socket.broadcast;
-//        var message = content;
-//        if (socket.room) {
-//            broadcast.to(socket.room);
-//            //插入数据库
-//            db.get('chat').insert(
-//                {
-//                    meetId: socket.room,
-//                    from: socket.username,
-//                    content: content
-//                },
-//                function(err, result)
-//                {
-//                    if (err)
-//                    {
-//                        //todo
-//                    }
-//                    else
-//                    {
-//                        broadcast.emit('serverMessage', socket.username + ': ' + message);
-//                    }
-//                }
-//            );
-//        }
-
-
+    socket.on('clientMessage', function(msg, fn) {
+        console.log(msg);
+        db.get('chat').insert(
+            {
+                from: msg.from,
+                to: msg.to,
+                content: msg.content,
+                status: '未读'
+            },
+            function(err, result)
+            {
+                if (err)
+                {
+                    //todo
+                }
+                else
+                {
+                    fn(msg);
+                    //send to receiver
+                    if (users[msg.to])
+                    {
+                        users[msg.to].emit('serverMessage', msg, function(read){
+                            if (read == true)
+                            {
+                                db.get('chat').findAndModify(
+                                    {
+                                        _id: result._id
+                                    }, // query
+                                    {
+                                        $set:
+                                        {
+                                            status: '已读'
+                                        }
+                                    },
+                                    {}, // options
+                                    function(err, object) {
+                                        if (err){
+                                            console.log("err:" + err);
+                                        }else{
+                                            console.log("ok:" + read);
+                                        }
+                                    });
+                            }
+                        });
+                    }
+                }
+            }
+        );
     });
 
     socket.on('disconnect', function() {

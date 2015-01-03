@@ -204,13 +204,12 @@ router.post('/getMyMeetList', function(req, res) {
 
 });
 
-router.post('/getSuccessList', function(req, res) {
-    var collection = db.get('meet');
-    collection.find(
+router.post('/checkFriendExist', function(req, res) {
+    db.get('meet').find(
         {
             $or: [
-                {creater: req.body.userName},
-                {target: req.body.userName}
+                {creater: req.body.userName, target: req.body.friendUserName},
+                {creater: req.body.friendUserName, target: req.body.userName}
             ],
             status: {$eq:"成功"}
         },
@@ -224,7 +223,31 @@ router.post('/getSuccessList', function(req, res) {
             }
         }
     );
+});
 
+router.post('/getSuccessList', function(req, res) {
+    var collection = db.get('meet');
+    collection.find(
+        {
+            $or: [
+                {creater: req.body.userName},
+                {target: req.body.userName}
+            ],
+            status: {$eq:"成功"}
+        },
+        {
+            sort: {_id: -1}
+        },
+        function(err, result){
+            if (err){
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                console.log(result);
+                res.json({status: "OK", list: result});
+            }
+        }
+    );
 });
 
 function createMeet(req, res){
@@ -418,12 +441,13 @@ router.post('/replyMeet', function(req, res) {
                 matchedMeet = result;
                 db.get('info').findOne(
                     {
-                        userName: result.target
+                        userName: matchedMeet.target
                     },
                     next
                 );
             },
             function(result, next){
+                console.log('"type":"matchTarget", "friendUserName":"'+ matchedMeet.creater + '"');
                 request.post(
                     'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
                     { form:
@@ -433,7 +457,7 @@ router.post('/replyMeet', function(req, res) {
                         cid: result.cid,
                         title: 'Hello H5 ',
                         content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                        payload: '"type":"matchTarget", "meetId":"'+ meetId + '"'
+                        payload: '"type":"matchTarget", "friend":"'+ matchedMeet.creater + '", "meetId":"'+ matchedMeet._id + '"'
                     }
                     },
                     function(err, res, body)
@@ -452,6 +476,7 @@ router.post('/replyMeet', function(req, res) {
                 );
             },
             function(result, next){
+                console.log('"type":"matchCreater", "friendUserName":"'+ matchedMeet.target + '", "meetId":"'+ matchedMeet._id + '"');
                 request.post(
                     'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
                     {
@@ -463,7 +488,7 @@ router.post('/replyMeet', function(req, res) {
                             cid: result.cid,
                             title: 'Hello H5 ',
                             content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                            payload: '"type":"matchCreater", "meetId":"'+ meetId + '"'
+                            payload: '"type":"matchCreater", "friend":"'+ matchedMeet.target + '", "meetId":"'+ matchedMeet._id + '"'
                         }
                     },
                     function(err, res, body)
@@ -548,7 +573,7 @@ router.post('/getInfo', function(req, res) {
                 res.json({status:"Err", msg:err});
             }
             else{
-                console.log();
+                console.log(result[0]);
                 res.json({status: "OK", item: result[0]});
             }
         }
@@ -601,61 +626,56 @@ router.post('/updateInfo', function(req, res){
 });
 
 router.post('/uploadSpecialPic', function(req, res) {
-    if (req.body.client == "pp")
-    {
-        var fileName = req.files.specialPic.name;
-        var fileNameBase = path.basename(fileName, path.extname(fileName));
+console.log(req);
+    var fileName = req.files.specialPic.name;
+    var fileNameBase = path.basename(fileName, path.extname(fileName));
 
-        async.parallel([
-                function(callback){
-                    lwip.open('./public/images/'+fileName,
-                        function(err, image){
-                            image.batch().resize(80, 80).writeFile('./public/images/' + fileNameBase + "_m.jpg",
-                                function(err){
-                                    callback(err, 'ok');
-                                }
-                            );
-                        }
-                    );
-                },
-                function(callback){
-                    lwip.open('./public/images/'+fileName,
-                        function(err, image){
-                            image.batch().resize(40, 40).writeFile('./public/images/' + fileNameBase + "_s.jpg",
-                                function(err){
-                                    callback(err, 'ok');
-                                }
-                            );
-                        }
-                    );
-                },
-                function(callback){
-                    lwip.open('./public/images/'+fileName,
-                        function(err, image){
-                            image.batch().scale(0.25).resize(200, 200).writeFile('./public/images/' + fileNameBase + "_l.jpg",
-                                function(err){
-                                    callback(err, 'ok');
-                                }
-                            );
-                        }
-                    );
-                }
-            ],
-            function(err, results){
-                if (err)
-                {
-                    res.json({status:"Err", msg:err});
-                }
-                else{
-                    res.json({status: "OK", item: fileName});
-                }
+    async.parallel([
+            function(callback){
+                lwip.open('./public/images/'+fileName,
+                    function(err, image){
+                        image.batch().resize(80, 80).writeFile('./public/images/' + fileNameBase + "_m.jpg",
+                            function(err){
+                                callback(err, 'ok');
+                            }
+                        );
+                    }
+                );
+            },
+            function(callback){
+                lwip.open('./public/images/'+fileName,
+                    function(err, image){
+                        image.batch().resize(40, 40).writeFile('./public/images/' + fileNameBase + "_s.jpg",
+                            function(err){
+                                callback(err, 'ok');
+                            }
+                        );
+                    }
+                );
+            },
+            function(callback){
+                lwip.open('./public/images/'+fileName,
+                    function(err, image){
+                        image.batch().scale(0.25).resize(200, 200).writeFile('./public/images/' + fileNameBase + "_l.jpg",
+                            function(err){
+                                callback(err, 'ok');
+                            }
+                        );
+                    }
+                );
             }
-        );
-    }
-    else
-    {
-        res.end("server");
-    }
+        ],
+        function(err, results){
+            if (err)
+            {
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                res.json({status: "OK", item: fileName});
+            }
+        }
+    );
+
 });
 
 router.post('/searchTargetPic', function(req, res){
@@ -757,21 +777,34 @@ router.post('/checkLocUid', function(req, res){
 });
 
 router.post('/getChatList', function(req, res) {
+    userName = req.body.userName;
+    friendUserName = req.body.friendUserName;
+
+    //取得最后10条消息
     db.get('chat').find(
         {
-            meetId: req.body.meetId
+
+            $or: [
+                {
+                    from: friendUserName,
+                    to: userName
+                },
+                {
+                    from: userName,
+                    to: friendUserName
+                }
+            ]
         },
         {
-            sort: {_id: -1}
+            sort: {_id: -1},
+            limit: 10
         },
         function(err, result)
         {
             if (err){
-                console.log(err);
                 res.json({status:"Err", msg:err});
             }
             else{
-                //console.log(result);
                 res.json({status: "OK", list: result});
             }
         }
