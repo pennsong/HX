@@ -638,7 +638,7 @@ router.post('/updateInfo', function(req, res){
 });
 
 router.post('/uploadSpecialPic', function(req, res) {
-console.log(req);
+    console.log(req);
     var fileName = req.files.specialPic.name;
     var fileNameBase = path.basename(fileName, path.extname(fileName));
 
@@ -696,6 +696,7 @@ router.post('/searchTargetPic', function(req, res){
 
     function finalCallback(err, result){
         if (err){
+            console.log(err);
             res.json({status:"Err", msg:err});
         }
         else{
@@ -704,28 +705,54 @@ router.post('/searchTargetPic', function(req, res){
     }
     async.waterfall([
             function(next){
-                db.get('info').find(
-                    {
-                        lastLocation:{
-                            $near :
-                            {
-                                $geometry: { type: "Point",  coordinates: [ Number(req.body.lng), Number(req.body.lat) ] },
-                                $maxDistance: 500
+                db.get('info').col.aggregate(
+                    [
+                        {
+                            $geoNear: {
+                                near: { type: "Point", coordinates: [ Number(req.body.lng), Number(req.body.lat) ] },
+                                distanceField: "lastLocation",
+                                maxDistance: 500,
+                                query: {
+                                    lastLocationTime: {$gt:before15Min.getTime()},
+                                    userName:{$ne: req.body.userName},
+                                    sex:req.body.sex
+                                },
+                                //includeLocs: "dist.location",
+                                //num: 100,
+                                spherical: true
                             }
                         },
-                        lastLocationTime: {$gt:before15Min.getTime()},
-                        userName:{$ne: req.body.userName},
-                        sex: req.body.sex,
-                        hair: req.body.hair,
-                        glasses: req.body.glasses,
-                        clothesType: req.body.clothesType,
-                        clothesColor: req.body.clothesColor,
-                        clothesStyle: req.body.clothesStyle
-                    },
+                        {
+                            $project: {
+                                finalTotal: {
+                                    $let: {
+                                        vars: {
+                                            vhair: { $cond: { if: {$eq: ['$hair', req.body.hair]}, then: 1, else: 0 } },
+                                            vglasses: { $cond: { if: {$eq: ['$glasses', req.body.glasses]}, then: 1, else: 0 } },
+                                            vclothesType: { $cond: { if: {$eq: ['$clothesType', req.body.clothesType]}, then: 1, else: 0 } },
+                                            vclothesColor: { $cond: { if: {$eq: ['$clothesColor', req.body.clothesColor]}, then: 1, else: 0 } },
+                                            vclothesStyle: { $cond: { if: {$eq: ['$clothesStyle', req.body.clothesStyle]}, then: 1, else: 0 } }
+                                        },
+                                        in: { $add: [ "$$vhair", "$$vglasses", "$$vclothesType", "$$vclothesColor", "$$vclothesStyle" ] }
+                                    }
+                                },
+                                userName: 1,
+                                fileName: 1
+                            }
+                        },
+                        {
+                            $match :
+                            {
+                                finalTotal: {$gte: 4}
+                            }
+                        }
+                    ],
                     next
                 );
             },
             function(result, next){
+                console.log("abc");
+                console.log(result);
                 realResult = result;
                 //随机图片
                 var needRanNum = 4 - result.length;
