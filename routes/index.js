@@ -400,6 +400,8 @@ router.post('/updateMeet', function(req, res) {
 router.post('/replyMeet', function(req, res) {
     var meetId = null;
     var matchedMeet = null;
+    var createrInfo = null;
+    var targetInfo = null;
 
     function finalCallback(err, result){
         if (err){
@@ -447,6 +449,25 @@ router.post('/replyMeet', function(req, res) {
                 );
             },
             function(result, next){
+                targetInfo = result;
+                db.get('info').findOne(
+                    {
+                        userName: matchedMeet.creater
+                    },
+                    next
+
+                );
+            },
+            function(result, next){
+                createrInfo = result;
+                db.get('meet').findAndModify(
+                    {_id: req.body.meetId}, // query
+                    {$set: {targetPic: targetInfo.fileName, createrPic: createrInfo.fileName}},
+                    {new: true},
+                    next
+                );
+            },
+            function(result, next){
                 console.log('"type":"matchTarget", "friendUserName":"'+ matchedMeet.creater + '"');
                 request.post(
                     'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
@@ -454,25 +475,16 @@ router.post('/replyMeet', function(req, res) {
                     { pushtype: 'tran',
                         version: '0.13.0',
                         appid: 'HBuilder',
-                        cid: result.cid,
+                        cid: targetInfo.cid,
                         title: 'Hello H5 ',
-                        content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                        payload: '"type":"matchTarget", "friend":"'+ matchedMeet.creater + '", "meetId":"'+ matchedMeet._id + '"'
+                        content: 'tt',
+                        payload: '"type":"matchTarget", "pic":"'+ createrInfo.fileName + '", "friend":"'+ matchedMeet.creater + '", "meetId":"'+ matchedMeet._id + '"'
                     }
                     },
                     function(err, res, body)
                     {
                         next(err, null);
                     }
-                );
-            },
-            function(result, next){
-                db.get('info').findOne(
-                    {
-                        userName: matchedMeet.creater
-                    },
-                    next
-
                 );
             },
             function(result, next){
@@ -485,10 +497,10 @@ router.post('/replyMeet', function(req, res) {
                             pushtype: 'tran',
                             version: '0.13.0',
                             appid: 'HBuilder',
-                            cid: result.cid,
+                            cid: createrInfo.cid,
                             title: 'Hello H5 ',
-                            content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
-                            payload: '"type":"matchCreater", "friend":"'+ matchedMeet.target + '", "meetId":"'+ matchedMeet._id + '"'
+                            content: 'tt',
+                            payload: '"type":"matchCreater", "pic":"'+ targetInfo.fileName + '", "friend":"'+ matchedMeet.target + '", "meetId":"'+ matchedMeet._id + '"'
                         }
                     },
                     function(err, res, body)
