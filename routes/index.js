@@ -253,6 +253,9 @@ router.post('/getSuccessList', function(req, res) {
 function createMeet(req, res){
     var meetId = null;
     var createdMeet = null;
+    var now = new Date();
+    var before15Min = new Date(now.getTime() - 15*60000);
+    var currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     function finalCallback(err, result){
         if (err){
@@ -296,6 +299,54 @@ function createMeet(req, res){
                 }
                 else
                 {
+                    //发送给附近没有更新info的人
+                    db.get('info').find(
+                        {
+                            lastLocation:{
+                                $near :
+                                {
+                                    $geometry: { type: "Point",  coordinates: [ Number(req.body.lng), Number(req.body.lat) ] },
+                                    $maxDistance: 500
+                                }
+                            },
+                            lastLocationTime: {$gt:before15Min.getTime()},
+                            userName:{$ne: req.body.userName},
+                            updateTime: {$lte:currentDate}
+                        },
+                        function(err, result)
+                        {
+                            console.log(result);
+                            if (err)
+                            {
+                            }
+                            else
+                            {
+                                result.forEach(function(item){
+                                    request.post(
+                                        'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
+                                        {
+                                            form:
+                                            {
+                                                pushtype: 'tran',
+                                                version: '0.13.0',
+                                                appid: 'HBuilder',
+                                                cid: item.cid,
+                                                title: 'Info need to update',
+                                                content: '机会来啦,请更新个人信息啊!',
+                                                payload: '"type":"checkInfo", "a":"'+ 1 + '"'
+                                            }
+                                        },
+                                        function(err, res, body)
+                                        {
+
+                                        }
+                                    );
+                                });
+                            }
+                        }
+                    );
+
+
                     finalCallback(null, createdMeet);
                 }
             },
@@ -744,6 +795,12 @@ router.post('/searchTargetPic', function(req, res){
                             $match :
                             {
                                 finalTotal: {$gte: 4}
+                            }
+                        },
+                        {
+                            $sort:
+                            {
+                                finalTotal: -1
                             }
                         }
                     ],
