@@ -271,7 +271,7 @@ function createMeet(req, res){
                 db.get('meet').insert(
                     {
                         creater: req.body.userName,
-                        location: { lng: req.body.lng, lat: req.body.lat},
+                        location: { lng: Number(req.body.lng), lat: Number(req.body.lat)},
                         target: req.body.target,
                         status: req.body.status,
                         uid: req.body.uid,
@@ -311,7 +311,9 @@ function createMeet(req, res){
                             },
                             lastLocationTime: {$gt:before15Min.getTime()},
                             userName:{$ne: req.body.userName},
-                            updateTime: {$lte:currentDate}
+                            $or: [
+                                {updateTime: null}, {updateTime: {$lte:currentDate}}
+                            ]
                         },
                         function(err, result)
                         {
@@ -643,49 +645,162 @@ router.post('/getInfo', function(req, res) {
     );
 });
 
-router.post('/updateInfo', function(req, res){
-
-    function finalCallback(err, result){
-        if (err){
-            res.json({status:"Err", msg:err});
-        }
-        else{
-            res.json({status: "OK", item: result});
-        }
+function objectIdWithTimestamp(timestamp)
+{
+    // Convert string date to Date object (otherwise assume timestamp is a date)
+    if (typeof(timestamp) == 'string') {
+        timestamp = new Date(timestamp);
     }
-    async.waterfall([
-            function(next){
-                db.get('user').findOne(
-                    {
-                        userName: req.body.userName
-                    },
-                    next
-                );
-            },
-            function(result, next){
-                db.get('info').findAndModify(
-                    {userName: req.body.userName},
-                    {$set:
-                    {
-                        sex: result.sex,
-                        hair: req.body.hair,
-                        glasses: req.body.glasses,
-                        clothesType: req.body.clothesType,
-                        clothesColor: req.body.clothesColor,
-                        clothesStyle: req.body.clothesStyle,
-                        fileName: req.body.fileName,
-                        updateTime: new Date()
+
+    // Convert date object to hex seconds since Unix epoch
+    var hexSeconds = Math.floor(timestamp/1000).toString(16);
+
+    // Create an ObjectId with that hex timestamp
+    var constructedObjectId = db.get('info').id(hexSeconds + "0000000000000000");
+
+    return constructedObjectId
+}
+
+router.post('/updateInfo', function(req, res){
+    var newInfo = null;
+    db.get('info').findAndModify(
+        {userName: req.body.userName},
+        {
+            $set:
+            {
+                hair: req.body.hair,
+                glasses: req.body.glasses,
+                clothesType: req.body.clothesType,
+                clothesColor: req.body.clothesColor,
+                clothesStyle: req.body.clothesStyle,
+                fileName: req.body.fileName,
+                updateTime: new Date()
+            }
+        },
+        {
+            new: true
+        },
+        function(err, result){
+            if (err){
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                newInfo = result;
+                console.log(result);
+                res.json({status: "OK", item: result});
+
+                //寻找附近待确定符合条件的meet, 通知对方
+                var now = new Date();
+                var before30Min = new Date(now.getTime() - 30*60000);
+                db.get('meet').col.aggregate(
+                    [
+                        {
+                            $geoNear: {
+                                near: { type: "Point", coordinates: [ newInfo.lastLocation.lng, newInfo.lastLocation.lat ] },
+                                distanceField: "location",
+                                maxDistance: 500,
+                                query: {
+                                    _id: { $gt: objectIdWithTimestamp(before30Min) },
+                                    creater:{$ne: req.body.userName},
+                                    targetSex:newInfo.sex,
+                                    status: "待确认"
+                                },
+                                //includeLocs: "dist.location",
+                                //num: 100,
+                                spherical: true
+                            }
+                        },
+                        {
+                            $project: {
+                                finalTotal: {
+                                    $let: {
+                                        vars: {
+                                            vhair: { $cond: { if: {$eq: ['$targetHair', newInfo.hair]}, then: 1, else: 0 } },
+                                            vglasses: { $cond: { if: {$eq: ['$targetGlasses', newInfo.glasses]}, then: 1, else: 0 } },
+                                            vclothesType: { $cond: { if: {$eq: ['$targetClothesType', newInfo.clothesType]}, then: 1, else: 0 } },
+                                            vclothesColor: { $cond: { if: {$eq: ['$targetClothesColor', newInfo.clothesColor]}, then: 1, else: 0 } },
+                                            vclothesStyle: { $cond: { if: {$eq: ['$targetClothesStyle', newInfo.clothesStyle]}, then: 1, else: 0 } }
+                                        },
+                                        in: { $add: [ "$$vhair", "$$vglasses", "$$vclothesType", "$$vclothesColor", "$$vclothesStyle" ] }
+                                    }
+                                },
+                                creater: 1,
+                                _id: 1
+                            }
+                        },
+                        {
+                            $match :
+                            {
+                                finalTotal: {$gte: 4}
+                            }
+                        },
+                        {
+                            $sort:
+                            {
+                                finalTotal: -1
+                            }
+                        }
+                    ],
+                    function(err, result){
+                        if (err){
+                            console.log(err);
+                        }
+                        else{
+                            var userNames = result.map(function(item){
+                                return item.creater;
+                            });
+                            db.get('info').find(
+                                {
+                                    userName: { $in: userNames }
+                                },
+                                function(err, result2){
+                                    var userNameCid = [];
+
+                                    result2.forEach(function(item){
+                                        userNameCid[item.userName] = item.cid;
+                                    });
+
+                                    result.forEach(function(item){
+                                        item.cid = userNameCid[item.creater];
+
+                                        request.post(
+                                            'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
+                                            {
+                                                form:
+                                                {
+                                                    pushtype: 'tran',
+                                                    version: '0.13.0',
+                                                    appid: 'HBuilder',
+                                                    cid: item.cid,
+                                                    title: 'Hello H5 ',
+                                                    content: 'tt！',
+                                                    payload: '"type":"checkNewXiehouPic", "meetId":"'+ item._id + '"'
+                                                }
+                                            },
+                                            function(err, res, body)
+                                            {
+                                                if (err)
+                                                {
+                                                    console.log(err);
+                                                }
+                                                else
+                                                {
+                                                    console.log(item.cid);
+                                                }
+                                            }
+                                        );
+
+                                    });
+                                }
+                            );
+                        }
                     }
-                    },
-                    {
-                        new: true
-                    },
-                    next
                 );
             }
-        ],
-        finalCallback
+        }
     );
+
+
 });
 
 router.post('/uploadSpecialPic', function(req, res) {
