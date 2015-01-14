@@ -79,7 +79,8 @@ router.post('/regist', function(req, res) {
                 collection = db.get('info');
                 collection.insert(
                     {
-                        userName: req.body.userName
+                        userName: req.body.userName,
+                        sex: req.body.sex
                     },
                     next
                 );
@@ -450,6 +451,102 @@ router.post('/updateMeet', function(req, res) {
     );
 });
 
+router.post('/delContract', function(req, res) {
+    var meetId = req.body.meetId;
+    var createrUserName = null;
+    var targetUserName = null;
+
+    function finalCallback(err, result){
+        if (err){
+            res.json({status:"Err", msg:err});
+        }
+        else{
+            res.json({status: "OK", item: result});
+        }
+    }
+
+    async.waterfall([
+            function(next){
+                db.get('meet').findOne(
+                    {
+                        _id: meetId
+                    },
+                    next
+                );
+            },
+            function(result, next){
+                createrUserName = result.creater;
+                targetUserName = result.target;
+                db.get('info').findOne(
+                    {
+                        userName: createrUserName
+                    },
+                    next
+                );
+            },
+            function(result, next){
+                request.post(
+                    'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
+                    {
+                        form:
+                        {
+                            pushtype: 'tran',
+                            version: '0.13.0',
+                            appid: 'HBuilder',
+                            cid: result.cid,
+                            title: 'Hello H5 ',
+                            content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
+                            payload: '"type":"delContract", "friendUserName":"'+ targetUserName + '"'
+                        }
+                    },
+                    function(err, res, body)
+                    {
+                        next(err, null);
+                    }
+                );
+            },
+            function(result, next){
+                db.get('info').findOne(
+                    {
+                        userName: targetUserName
+                    },
+                    next
+                );
+            },
+            function(result, next){
+                request.post(
+                    'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
+                    {
+                        form:
+                        {
+                            pushtype: 'tran',
+                            version: '0.13.0',
+                            appid: 'HBuilder',
+                            cid: result.cid,
+                            title: 'Hello H5 ',
+                            content: '带透传数据推送通知，可通过plus.push API获取数据并进行业务逻辑处理！',
+                            payload: '"type":"delContract", "friendUserName":"'+ createrUserName + '"'
+                        }
+                    },
+                    function(err, res, body)
+                    {
+                        next(err, null);
+                    }
+                );
+            },
+            function(result, next){
+                db.get('meet').remove(
+                    {
+                        _id: meetId
+                    },
+                    next
+                );
+            }
+        ],
+        finalCallback
+    );
+});
+
 router.post('/replyMeet', function(req, res) {
     var meetId = null;
     var matchedMeet = null;
@@ -686,7 +783,7 @@ router.post('/updateInfo', function(req, res){
             }
             else{
                 newInfo = result;
-                console.log(result);
+                console.log(newInfo.sex);
                 res.json({status: "OK", item: result});
 
                 //寻找附近待确定符合条件的meet, 通知对方
@@ -742,6 +839,8 @@ router.post('/updateInfo', function(req, res){
                         }
                     ],
                     function(err, result){
+                        console.log('aa');
+                        console.log(result);
                         if (err){
                             console.log(err);
                         }
@@ -854,6 +953,71 @@ router.post('/uploadSpecialPic', function(req, res) {
         }
     );
 
+});
+
+router.post('/matchMeet', function(req, res){
+    db.get('meet').col.aggregate(
+        [
+            {
+                $geoNear: {
+                    near: { type: "Point", coordinates: [ Number(req.body.lng), Number(req.body.lat) ] },
+                    distanceField: "location",
+                    maxDistance: 500,
+                    query: {
+                        _id: db.get('meet').id(req.body.meetId),
+                        targetSex: req.body.sex
+                    },
+                    //includeLocs: "dist.location",
+                    //num: 100,
+                    spherical: true
+                }
+            },
+            {
+                $project: {
+                    finalTotal: {
+                        $let: {
+                            vars: {
+                                vhair: { $cond: { if: {$eq: ['$targetHair', req.body.hair]}, then: 1, else: 0 } },
+                                vglasses: { $cond: { if: {$eq: ['$targetGlasses', req.body.glasses]}, then: 1, else: 0 } },
+                                vclothesType: { $cond: { if: {$eq: ['$targetClothesType', req.body.clothesType]}, then: 1, else: 0 } },
+                                vclothesColor: { $cond: { if: {$eq: ['$targetClothesColor', req.body.clothesColor]}, then: 1, else: 0 } },
+                                vclothesStyle: { $cond: { if: {$eq: ['$targetClothesStyle', req.body.clothesStyle]}, then: 1, else: 0 } }
+                            },
+                            in: { $add: [ "$$vhair", "$$vglasses", "$$vclothesType", "$$vclothesColor", "$$vclothesStyle" ] }
+                        }
+                    }
+                }
+            },
+            {
+                $match :
+                {
+                    finalTotal: {$gte: 4}
+                }
+            },
+            {
+                $sort:
+                {
+                    finalTotal: -1
+                }
+            }
+        ],
+        function(err, result)
+        {
+            if (err){
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                console.log('bb' + req.body.meetId + "," + req.body.sex);
+                console.log(result);
+                var matchResult = false;
+                if (result.length > 0)
+                {
+                    matchResult = true;
+                }
+                res.json({status: "OK", match: matchResult});
+            }
+        }
+    );
 });
 
 router.post('/searchTargetPic', function(req, res){
@@ -986,6 +1150,69 @@ router.post('/checkLocUid', function(req, res){
         }
     );
 });
+
+router.post('/rename', function(req, res){
+    db.get('meet').findOne(
+        {
+            _id: req.body.meetId
+        },
+        function(err, result)
+        {
+            if (err){
+                res.json({status:"Err", msg:err});
+            }
+            else{
+                if (result.creater == req.body.userName)
+                {
+                    db.get('meet').findAndModify(
+                        {
+                            _id: req.body.meetId
+                        }, // query
+                        {
+                            $set:
+                            {
+                                targetNick: req.body.newName
+                            }
+                        },
+                        {}, // options
+                        function(err, object) {
+                            if (err){
+                                res.json({status:"Err", msg:err});
+                            }else{
+                                res.json({status: "OK", match: "YES"});
+                            }
+                        });
+                }
+                else if (result.target == req.body.userName)
+                {
+                    db.get('meet').findAndModify(
+                        {
+                            _id: req.body.meetId
+                        }, // query
+                        {
+                            $set:
+                            {
+                                createrNick: req.body.newName
+                            }
+                        },
+                        {}, // options
+                        function(err, object) {
+                            if (err){
+                                res.json({status:"Err", msg:err});
+                            }else{
+                                res.json({status: "OK", match: "YES"});
+                            }
+                        });
+                }
+                else
+                {
+                    res.json({status:"Err", msg:"非法操作!"});
+                }
+            }
+        }
+    );
+});
+
 
 router.post('/getChatList', function(req, res) {
     userName = req.body.userName;
