@@ -91,7 +91,7 @@ router.post('/regist', function(req, res) {
 });
 
 router.post('/login', function(req, res) {
-    console.log(req.body.userName + "," + req.body.password);
+    console.log(req.body.userName + "," + req.body.password + "," + req.body.cid);
     var collection = db.get('user');
     collection.find(
         {
@@ -101,7 +101,30 @@ router.post('/login', function(req, res) {
         function(e,docs){
             if (docs.length == 1)
             {
-                res.json({status: "OK", userName: docs[0].userName, nickName: docs[0].nickName});
+                //清空同台设备绑定的其他用户
+                db.get('info').findAndModify(
+                    {
+                        cid: {$eq: req.body.cid},
+                        userName: {$ne: req.body.userName}
+                    },
+                    {
+                        $set:
+                        {
+                            cid: null
+                        }
+                    },
+                    {},
+                    function(err, result)
+                    {
+                        console.log(result);
+                        if (err){
+                            res.json({status:"Err", msg:err});
+                        }
+                        else{
+                            res.json({status: "OK", userName: docs[0].userName, nickName: docs[0].nickName});
+                        }
+                    }
+                );
             }
             else
             {
@@ -856,12 +879,10 @@ router.post('/updateInfo', function(req, res){
                                     var userNameCid = [];
 
                                     result2.forEach(function(item){
-                                        userNameCid[item.userName] = item.cid;
+                                        userNameCid['_' + item.userName] = item.cid;
                                     });
-
                                     result.forEach(function(item){
-                                        item.cid = userNameCid[item.creater];
-
+                                        item.cid = userNameCid['_' + item.creater];
                                         request.post(
                                             'http://demo.dcloud.net.cn/helloh5/push/igetui.php',
                                             {
@@ -878,6 +899,7 @@ router.post('/updateInfo', function(req, res){
                                             },
                                             function(err, res, body)
                                             {
+
                                                 if (err)
                                                 {
                                                     console.log(err);
@@ -1174,12 +1196,12 @@ router.post('/rename', function(req, res){
                                 targetNick: req.body.newName
                             }
                         },
-                        {}, // options
-                        function(err, object) {
+                        {new: true}, // options
+                        function(err, result) {
                             if (err){
                                 res.json({status:"Err", msg:err});
                             }else{
-                                res.json({status: "OK", match: "YES"});
+                                res.json({status: "OK", change: result.target});
                             }
                         });
                 }
@@ -1195,12 +1217,12 @@ router.post('/rename', function(req, res){
                                 createrNick: req.body.newName
                             }
                         },
-                        {}, // options
+                        {new: true}, // options
                         function(err, object) {
                             if (err){
                                 res.json({status:"Err", msg:err});
                             }else{
-                                res.json({status: "OK", match: "YES"});
+                                res.json({status: "OK", change: result.creater});
                             }
                         });
                 }
