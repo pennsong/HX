@@ -49,6 +49,12 @@ router.post('/oldregist', function(req, res) {
 
 
 router.post('/regist', function(req, res) {
+    if (req.body.userName == "fake")
+    {
+        res.json({status:"Err", msg:err});
+        return;
+    }
+
     var newUser = null;
 
     function callback(err, result) {
@@ -298,6 +304,7 @@ function createMeet(req, res){
                         location: { lng: Number(req.body.lng), lat: Number(req.body.lat)},
                         target: req.body.target,
                         status: req.body.status,
+                        locName: req.body.locName,
                         uid: req.body.uid,
                         targetSex: req.body.targetSex,
                         targetClothesColor: req.body.targetClothesColor,
@@ -311,7 +318,12 @@ function createMeet(req, res){
             },
             function(result, next){
                 createdMeet = result;
-                if (req.body.target && req.body.target != "fake")
+
+                if (req.body.target == "fake")
+                {
+                    finalCallback(null, createdMeet);
+                }
+                else if (req.body.target)
                 {
                     meetId = result._id;
                     db.get('info').findOne(
@@ -710,8 +722,9 @@ router.post('/getMeet', function(req, res){
             },
             function(result, next){
                 meet = result;
-                if (meet.target == "")
+                if (meet.target == "" || meet.target == "fake")
                 {
+                    console.log(meet);
                     finalCallback(null, meet);
                 }
                 else
@@ -744,6 +757,62 @@ router.post('/getMeet', function(req, res){
     );
 });
 
+router.post('/sendMeetCheck', function(req, res) {
+    var now = new Date();
+    var before30Min = new Date(now.getTime() - 30*60000);
+    var currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    db.get('meet').find(
+        {
+            creater: req.body.userName
+        },
+        {
+            limit : 1,
+            sort:
+            {
+                _id: -1
+            }
+        },
+        function(err, result)
+        {
+            if (err){
+                console.log(err);
+                res.json({status:"Err", msg:err});
+            }
+            else
+            {
+//                if (result.length == 1)
+//                {
+//                    var diffSec = new Date(parseInt(result[0]._id.toString().slice(0,8), 16)*1000) - before30Min;
+//
+//                    if (diffSec > 0)
+//                    {
+//                        res.json({status: "OK", warn: Math.floor(diffSec / 1000 / 60)});
+//                        return;
+//                    }
+//                }
+
+                db.get('info').find(
+                    {
+                        userName: req.body.userName,
+                        updateTime: {$gt:currentDate}
+                    },
+                    function(err, result){
+                        if (err){
+                            console.log(err);
+                            res.json({status:"Err", msg:err});
+                        }
+                        else{
+                            //console.log(result[0]);
+                            //检查是否可以发送邀请
+                            res.json({status: "OK", item: result[0]});
+                        }
+                    }
+                );
+            }
+        }
+    );
+});
+
 router.post('/getInfo', function(req, res) {
     var now = new Date();
     var currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -764,6 +833,7 @@ router.post('/getInfo', function(req, res) {
         }
     );
 });
+
 
 function objectIdWithTimestamp(timestamp)
 {
