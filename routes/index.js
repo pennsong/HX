@@ -304,6 +304,7 @@ function createMeet(req, res){
                         location: { lng: Number(req.body.lng), lat: Number(req.body.lat)},
                         target: req.body.target,
                         status: req.body.status,
+                        confusePicLeft: 2,
                         locName: req.body.locName,
                         uid: req.body.uid,
                         targetSex: req.body.targetSex,
@@ -620,7 +621,28 @@ router.post('/replyMeet', function(req, res) {
                 //没有匹配
                 else
                 {
-                    finalCallback(null, null);
+                    if (req.body.target == 'fake')
+                    {
+                        if (result.confusePicLeft > 0)
+                        {
+                            var newConfusePicLeft = result.confusePicLeft - 1;
+                            db.get('meet').findAndModify(
+                                {_id: req.body.meetId}, // query
+                                {$set: {confusePicLeft: newConfusePicLeft}},
+                                {new: true},
+                                finalCallback
+                            );
+                        }
+                        else
+                        {
+                            res.json({status: "OK", warn: "选择图片错误超过限制!"});
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        finalCallback(null, null);
+                    }
                 }
             },
             function(result, next){
@@ -731,14 +753,6 @@ router.post('/getMeet', function(req, res){
                 {
                     next(null, meet);
                 }
-            },
-            function(result, next){
-                db.get('info').findOne(
-                    {
-                        userName: meet.target
-                    },
-                    next
-                );
             },
             function(result, next){
                 db.get('info').findOne(
