@@ -608,8 +608,13 @@ router.post('/replyMeet', function(req, res) {
                 );
             },
             function(result, next){
+                if (result.confusePicLeft == 0)
+                {
+                    res.json({status: "OK", warn: "选择图片错误超过限制!"});
+                    return;
+                }
                 //匹配成功
-                if (result.creater == req.body.target)
+                else if (result.creater == req.body.target)
                 {
                     db.get('meet').findAndModify(
                         {_id: req.body.meetId}, // query
@@ -621,28 +626,13 @@ router.post('/replyMeet', function(req, res) {
                 //没有匹配
                 else
                 {
-                    if (req.body.target == 'fake')
-                    {
-                        if (result.confusePicLeft > 0)
-                        {
-                            var newConfusePicLeft = result.confusePicLeft - 1;
-                            db.get('meet').findAndModify(
-                                {_id: req.body.meetId}, // query
-                                {$set: {confusePicLeft: newConfusePicLeft}},
-                                {new: true},
-                                finalCallback
-                            );
-                        }
-                        else
-                        {
-                            res.json({status: "OK", warn: "选择图片错误超过限制!"});
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        finalCallback(null, null);
-                    }
+                    var newConfusePicLeft = result.confusePicLeft - 1;
+                    db.get('meet').findAndModify(
+                        {_id: req.body.meetId}, // query
+                        {$set: {confusePicLeft: newConfusePicLeft}},
+                        {new: true},
+                        finalCallback
+                    );
                 }
             },
             function(result, next){
