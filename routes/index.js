@@ -763,7 +763,7 @@ router.post('/getMeet', function(req, res){
 
 router.post('/sendMeetCheck', function(req, res) {
     var now = new Date();
-    var before30Min = new Date(now.getTime() - 30*60000);
+    var before30Min = new Date(now.getTime() - 2*60000);
     var currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     db.get('meet').find(
         {
@@ -784,16 +784,16 @@ router.post('/sendMeetCheck', function(req, res) {
             }
             else
             {
-//                if (result.length == 1)
-//                {
-//                    var diffSec = new Date(parseInt(result[0]._id.toString().slice(0,8), 16)*1000) - before30Min;
-//
-//                    if (diffSec > 0)
-//                    {
-//                        res.json({status: "OK", warn: Math.floor(diffSec / 1000 / 60)});
-//                        return;
-//                    }
-//                }
+                if (result.length == 1)
+                {
+                    var diffSec = new Date(parseInt(result[0]._id.toString().slice(0,8), 16)*1000) - before30Min;
+
+                    if (diffSec > 0)
+                    {
+                        res.json({status: "OK", warn: "离下次发送邀请还有" + Math.floor(diffSec / 1000 / 60) + "分钟!"});
+                        return;
+                    }
+                }
 
                 db.get('info').find(
                     {
